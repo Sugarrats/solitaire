@@ -300,9 +300,9 @@ def jouer(partie):
         else:
             print("Commande inconnue (｡ᵕ ◞ _◟)")
 
-        if partieGagnee(partie):
-            afficherPartie(partie)
-            print("Bravo, vous avez gagné ! ദ്ദി(˵ •̀ ᴗ - ˵ ) ✧")
+        if not victoireAssuree(partie):
+            print("Bien joué ദ്ദി(˵ •̀ ᴗ - ˵ ) ✧")
+            rangerAutomatiquement(partie)
             enCours = False
 
 
@@ -478,17 +478,29 @@ def piocher(partie):
         print("Plus aucune carte à piocher")
 
 
-# Cette fonction vérifie si la partie est gagnée
-# Elle prend en paramètre la partie (dictionnaire)
-# Elle renvoie True si les 4 fondations contiennent 13 cartes, False sinon
-def partieGagnee(partie):
-    gagnee = True
+# Cette fonction vérifie si la partie est dans une situation de victoire assurée
+# Elle prend en paramétre la partie (dictoinnaire)
+# Elle renvoie True si la pioche et la défausse sont vide et si les colonnes n'ont aucune carte caché
+def victoireAssuree(partie):
+    assuree = len(partie["pioche"]) == 0 and len(partie["defausse"]) == 0
 
-    for famille in partie["fondations"]:
-        if len(partie["fondations"][famille]) != 13:
-            gagnee = False
+    for colonne in partie["colonnes"]:
+        if len(colonne["cachees"]) > 0:
+            assuree = False
 
-    return gagnee
+    return assuree
+
+# Cette fonction range automatiquement les cartes des colonnes vers les fondations en cas de victoire assurée
+# Elle prend en paramétre la partie (dictoinnaire)
+def rangerAutomatiquement(partie):
+    while not partieGagnee(partie):
+        for colonne in partie["colonnes"]:
+            if len(colonne["visibles"]) > 0:
+                carte = colonne["visibles"][-1]
+                fondation = partie["fondations"][carte[1]]
+
+                if peutPoserSurFondation(carte, fondation):
+                    fondation.append(colonne["visibles"].pop())
 
 # À FAIRE - Point 3 : enregistrer la partie dans un fichier
 def sauvegarderPartie(partie):
