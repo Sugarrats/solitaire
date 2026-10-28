@@ -4,6 +4,7 @@
 import random
 import os
 import ctypes
+import json
 
 ROUGE = "\033[91m"
 NORMAL = "\033[0m"
@@ -22,7 +23,7 @@ def creerPioche():
     pioche = []
     for couleur in ["coeur", "carreau", "trefle", "pique"]:
         for i in range(13):
-            pioche.append((i + 1, couleur))
+            pioche.append([i + 1, couleur])
 
     random.shuffle(pioche)
 
@@ -101,7 +102,7 @@ def activerCouleurs():
 # AFFICHAGE 
 # =====================================================================
 
-# Cette fonction transforme une carte (tuple) en texte lisible pour l'affichage
+# Cette fonction transforme une carte (liste) en texte lisible pour l'affichage
 def carteEnTexte(carte):
     noms = {1: "A", 11: "V", 12: "D", 13: "R"}
     symboles = {"coeur": "♥", "carreau": "♦", "trefle": "♣", "pique": "♠"}
@@ -116,9 +117,9 @@ def carteEnTexte(carte):
 
     return texteValeur + symboles[couleur]
 
-# Cette fonction transforme un texte rentré par l'utilisateur en carte (tuple)
+# Cette fonction transforme un texte rentré par l'utilisateur en carte (liste)
 # Elle prend en paramètre le texte saisi
-# Elle renvoie la carte (valeur, couleur), ou None si la saisie est invalide
+# Elle renvoie la carte [valeur, couleur], ou None si la saisie est invalide
 def texteEnCarte(texte):
     num = {"a": 1, "v": 11, "d": 12, "r": 13}
     symboles = {"co": "coeur", "ca": "carreau", "tr": "trefle", "pi": "pique"}
@@ -130,10 +131,10 @@ def texteEnCarte(texte):
         carteCherchee = None
 
     elif valeur in num:
-        carteCherchee = (num[valeur], symboles[couleur])
+        carteCherchee = [num[valeur], symboles[couleur]]
 
     elif valeur.isdigit() and 1 <= int(valeur) <= 13:
-        carteCherchee = (int(valeur), symboles[couleur])
+        carteCherchee = [int(valeur), symboles[couleur]]
 
     else:
         carteCherchee = None
@@ -143,7 +144,7 @@ def texteEnCarte(texte):
 
 # Cette fonction renvoie le texte d'une carte, complété par des espaces
 # jusqu'à la largeur demandée, et écrit en rouge si c'est un coeur ou un carreau
-# Elle prend en paramètre la carte (tuple) et la largeur (entier)
+# Elle prend en paramètre la carte (liste) et la largeur (entier)
 def carteEnCouleur(carte, largeur):
     # On complète AVANT d'ajouter la couleur : les codes couleur sont des
     # caractères invisibles qui fausseraient le calcul de ljust()
@@ -300,7 +301,7 @@ def jouer(partie):
         else:
             print("Commande inconnue (｡ᵕ ◞ _◟)")
 
-        if not victoireAssuree(partie):
+        if victoireAssuree(partie):
             print("Bien joué ദ്ദി(˵ •̀ ᴗ - ˵ ) ✧")
             rangerAutomatiquement(partie)
             enCours = False
@@ -309,12 +310,12 @@ def jouer(partie):
 
 
 # Cette fonction indique si une carte est rouge (coeur ou carreau)
-# Elle prend en paramètre une carte (tuple) et renvoie un booléen
+# Elle prend en paramètre une carte (liste) et renvoie un booléen
 def estRouge(carte):
     return carte[1] == "coeur" or carte[1] == "carreau"
 
 # Cette fonction vérifie si une carte peut être posée sur une colonne
-# Elle prend en paramètre la carte (tuple) et la colonne (dictionnaire)
+# Elle prend en paramètre la carte (liste) et la colonne (dictionnaire)
 # Elle renvoie True si le déplacement respecte les règles, False sinon
 def peutPoserSurColonne(carte, colonne):
     # Colonne vide : seul un Roi peut y être posé
@@ -328,7 +329,7 @@ def peutPoserSurColonne(carte, colonne):
     return autorise
 
 # Cette fonction vérifie si une carte peut être posée sur une fondation
-# Elle prend en paramètre la carte (tuple) et la fondation  (liste)
+# Elle prend en paramètre la carte (liste) et la fondation  (liste)
 # Elle renvoie True si le déplacement respecte les règles, False sinon
 def peutPoserSurFondation(carte, fondation):
 
@@ -366,7 +367,7 @@ def demanderDestination():
 
 # Cette fonction demande au joueur la carte à déplacer
 # Elle ne prend pas de paramètre
-# Elle renvoie la carte (tuple), ou None si la saisie est invalide
+# Elle renvoie la carte (liste), ou None si la saisie est invalide
 def demanderCarte():
     print("Quelle carte faut-il déplacer ? (valeur A, 2-10, V, D, R puis couleur co, ca, tr, pi)")
     saisie = input(" -> ")
@@ -509,19 +510,25 @@ def rangerAutomatiquement(partie):
                     fondation.append(colonne["visibles"].pop())
                     nbCartesRestantes -= 1
 
-# À FAIRE - Point 3 : enregistrer la partie dans un fichier
+# Cette procédure enregistre l'état de la partie dans un fichier json
+# Elle prend la partie en paramétre et ne retourne rien
+# Les cartes sont des listes, elles sont donc enregistrées telles quelles dans le fichier
 def sauvegarderPartie(partie):
-    print("Sauvegarde : fonctionnalité pas encore disponible.")
+    with open('sauvegarde_partie.json','w') as file:
+        json.dump(partie, file)
+        print("partie sauvegardée ദ്ദി(˵ •̀ ᴗ - ˵ ) ✧")
 
 
-# À FAIRE - Point 3 : relire la partie depuis le fichier
-# Doit renvoyer la partie (dictionnaire), ou None si aucune sauvegarde
+
+# Cette procédure lit le fichier json de sauvegarde de l'état de la partie
+# elle ne prend pas de paramétres et ne renvoi rien
 def chargerPartie():
-    print("Chargement : fonctionnalité pas encore disponible.")
-    return None
+    with open('sauvegarde_partie.json','r') as file:
+        partie = json.load(file)
+    return partie
 
 
-# À FAIRE - Point 3 : afficher la liste des coups possibles
+# À FAIRE - Point 3 : afficher la liste du meilleur coup possible
 def proposerCoups(partie):
     print("Aide : fonctionnalité pas encore disponible.")
 
