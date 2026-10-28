@@ -397,19 +397,14 @@ def deplacer(partie):
                     colonneArrivee = partie["colonnes"][destination]
 
     if emplacementCarte == "defausse":
-        # Une seule carte : celle du dessus de la défausse
         colonneArrivee["visibles"].append(partie["defausse"].pop())
 
     else:
         colonneDepart = partie["colonnes"][emplacementCarte[0]]
         position = emplacementCarte[1]
 
-        # La carte choisie et toutes celles posées dessus
         cartesDeplacees = colonneDepart["visibles"][position:]
-
-        # On les retire de la colonne de départ...
         colonneDepart["visibles"] = colonneDepart["visibles"][:position]
-        # ...et on les ajoute à la colonne d'arrivée
         colonneArrivee["visibles"] += cartesDeplacees
 
         retournerCarteCachee(colonneDepart)
@@ -417,13 +412,26 @@ def deplacer(partie):
 
 
 
-# À FAIRE - Point 2 : retourner une (ou trois) carte(s) de la pioche
-# vers la défausse, et remettre la défausse dans la pioche si elle est vide
+# Cette procédure prend en paramétre le dictionnaire partie et ne renvoi rien
 def piocher(partie):
-    print("Pioche : fonctionnalité pas encore disponible.")
+    nbCartesPiochees = partie["parametres"]["cartesPiochees"]
+
+    if partie["pioche"]:
+        for i in range(nbCartesPiochees):
+            if partie["pioche"] :
+                cartePiochee = partie["pioche"].pop()
+                partie["defausse"].append(cartePiochee)
+
+    elif partie["defausse"]:
+        partie["defausse"].reverse()
+        partie["pioche"] = partie["defausse"]
+        partie["defausse"] = []
+
+    else:
+        print("Plus aucune carte à piocher")
 
 
-# À FAIRE - Point 2 : renvoyer True si les 4 fondations contiennent 13 cartes
+# Cette fonction renvoi True si les 4 fondations contiennent 13 cartes
 def partieGagnee(partie):
     return False
 
