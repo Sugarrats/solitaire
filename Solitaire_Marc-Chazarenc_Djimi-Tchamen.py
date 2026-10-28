@@ -13,7 +13,7 @@ NORMAL = "\033[0m"
 # ---------------
 
 # =====================================================================
-# CRÉATION DU JEU  (fait)
+# CRÉATION DU JEU
 # =====================================================================
 
 # Cette fonction va créer le paquets de carte pour notre jeu
@@ -56,8 +56,8 @@ def creerColonnes(pioche):
 # (ils seront modifiables au point d'étape 4)
 def creerParametres():
     parametres = {
-        "cartesPiochees": 1,   # nombre de cartes retournées à chaque pioche (1 ou 3)
-        "aideActive": True     # le joueur a-t-il droit à l'aide ?
+        "cartesPiochees": 1,   
+        "aideActive": True     
     }
     return parametres
 
@@ -78,8 +78,8 @@ def creerPartie(parametres):
     }
 
     partie = {
-        "pioche": pioche,           # cartes restantes, faces cachées
-        "defausse": [],             # cartes retournées depuis la pioche
+        "pioche": pioche,           
+        "defausse": [],             
         "colonnes": colonnes,
         "fondations": fondations,
         "parametres": parametres
@@ -98,7 +98,7 @@ def activerCouleurs():
 
 
 # =====================================================================
-# AFFICHAGE  (fait)
+# AFFICHAGE 
 # =====================================================================
 
 # Cette fonction transforme une carte (tuple) en texte lisible pour l'affichage
@@ -116,20 +116,30 @@ def carteEnTexte(carte):
 
     return texteValeur + symboles[couleur]
 
-# Cette fonction transforme une carte (tuple) en texte pour chercher une carte
+# Cette fonction transforme un texte rentré par l'utilisateur en carte (tuple)
+# Elle prend en paramètre le texte saisi
+# Elle renvoie la carte (valeur, couleur), ou None si la saisie est invalide
 def texteEnCarte(texte):
-    num = {"A" : 1,  "V": 11, "D":12, "R":13}
-    texte = {"♥": "coeur", "♦": "carreau", "♣": "trefle", "♠": "pique"}
+    num = {"a": 1, "v": 11, "d": 12, "r": 13}
+    symboles = {"co": "coeur", "ca": "carreau", "tr": "trefle", "pi": "pique"}
 
-    num = text[0]
-    couleur = carte[1]
+    valeur = texte[:-2]    
+    couleur = texte[-2:]  
 
-    if valeur in noms:
-        texteValeur = noms[valeur]
+    if couleur not in symboles:
+        carteCherchee = None
+
+    elif valeur in num:
+        carteCherchee = (num[valeur], symboles[couleur])
+
+    elif valeur.isdigit() and 1 <= int(valeur) <= 13:
+        carteCherchee = (int(valeur), symboles[couleur])
+
     else:
-        texteValeur = str(valeur)
+        carteCherchee = None
 
-    return texteValeur + symboles[couleur]
+    return carteCherchee
+
 
 # Cette fonction renvoie le texte d'une carte, complété par des espaces
 # jusqu'à la largeur demandée, et écrit en rouge si c'est un coeur ou un carreau
@@ -296,13 +306,113 @@ def jouer(partie):
 # programme tourne déjà, et sera remplie au point d'étape indiqué.
 # =====================================================================
 
-# À FAIRE - Point 1 : demander au joueur la source et la destination,
-# vérifier que le déplacement est autorisé puis l'effectuer
+# Cette fonction indique si une carte est rouge (coeur ou carreau)
+# Elle prend en paramètre une carte (tuple) et renvoie un booléen
+def estRouge(carte):
+    return carte[1] == "coeur" or carte[1] == "carreau"
+
+# Cette fonction vérifie si une carte peut être posée sur une colonne
+# Elle prend en paramètre la carte (tuple) et la colonne (dictionnaire)
+# Elle renvoie True si le déplacement respecte les règles, False sinon
+def peutPoserSurColonne(carte, colonne):
+    # Colonne vide : seul un Roi peut y être posé
+    if len(colonne["cachees"]) == 0 and len(colonne["visibles"]) == 0:
+        autorise = carte[0] == 13
+
+    else:
+        carteDessous = colonne["visibles"][-1]
+        autorise = carte[0] == carteDessous[0] - 1 and estRouge(carte) != estRouge(carteDessous)
+
+    return autorise
+
+# Cette fonction demande au joueur la colonne de destination
+# Elle ne prend pas de paramètre
+# Elle renvoie l'indice de la colonne (0 à 6), ou None si la saisie est invalide
+def demanderDestination():
+    print("Sur quelle colonne poser la carte ? (1 à 7)")
+    saisie = input(" -> ").replace(" ", "")
+
+    if saisie.isdigit() and 1 <= int(saisie) <= 7:
+        destination = int(saisie) - 1   # les listes commencent à 0
+    else:
+        destination = None
+
+    return destination
+
+
+
+# Cette fonction demande au joueur la carte à déplacer
+# Elle ne prend pas de paramètre
+# Elle renvoie la carte (tuple), ou None si la saisie est invalide
+def demanderCarte():
+    print("Quelle carte faut-il déplacer ? (valeur A, 2-10, V, D, R puis couleur co, ca, tr, pi)")
+    saisie = input(" -> ")
+    saisie = saisie.replace(" ", "")
+    saisie = saisie.lower()
+
+    return texteEnCarte(saisie)
+
+# Cette fonction retourne la dernière carte cachée d'une colonne
+# si plus aucune carte n'est visible
+# Elle prend en paramètre la colonne (dictionnaire) et ne renvoie rien
+def retournerCarteCachee(colonne):
+    if len(colonne["visibles"]) == 0 and len(colonne["cachees"]) > 0:
+        colonne["visibles"].append(colonne["cachees"].pop())
+
+
+
+# Cette fonction gère un déplacement complet demandé par le joueur
+# Elle prend en paramètre la partie (dictionnaire) et ne renvoie rien
 def deplacer(partie):
-    print("Quel carte faut il déplacer (pour coeur écrire co, pour carreau ca, pour pique, pi, pour tréfle tr.")
-    carte = input(" -> ")
-    carte = carte.replace(" " "")
-    carte = carte.lower()
+    emplacementCarte = None
+
+    carte = demanderCarte()
+
+    if carte is None:
+        print("Carte invalide.")
+    else:
+        # Recherche dans les cartes visibles de chaque colonne
+        for i in range(len(partie["colonnes"])):
+            visibles = partie["colonnes"][i]["visibles"]
+            for j in range(len(visibles)):
+                if visibles[j] == carte:
+                    emplacementCarte = (i, j)
+
+        # Recherche sur la dernière carte de la défausse
+        if len(partie["defausse"]) > 0 and partie["defausse"][-1] == carte:
+            emplacementCarte = "defausse"
+
+        if emplacementCarte is None:
+            print("Cette carte n'est pas disponible.")
+        else:
+            destination = demanderDestination()
+
+            if destination is None:
+                print("Colonne invalide.")
+            elif emplacementCarte != "defausse" and emplacementCarte[0] == destination:
+                print("La carte est déjà dans cette colonne.")
+            elif not peutPoserSurColonne(carte, partie["colonnes"][destination]):
+                print("Déplacement interdit par les règles.")
+            else:
+                    colonneArrivee = partie["colonnes"][destination]
+
+    if emplacementCarte == "defausse":
+        # Une seule carte : celle du dessus de la défausse
+        colonneArrivee["visibles"].append(partie["defausse"].pop())
+
+    else:
+        colonneDepart = partie["colonnes"][emplacementCarte[0]]
+        position = emplacementCarte[1]
+
+        # La carte choisie et toutes celles posées dessus
+        cartesDeplacees = colonneDepart["visibles"][position:]
+
+        # On les retire de la colonne de départ...
+        colonneDepart["visibles"] = colonneDepart["visibles"][:position]
+        # ...et on les ajoute à la colonne d'arrivée
+        colonneArrivee["visibles"] += cartesDeplacees
+
+        retournerCarteCachee(colonneDepart)
 
 
 
