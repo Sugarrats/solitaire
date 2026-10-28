@@ -490,10 +490,16 @@ def victoireAssuree(partie):
 
     return assuree
 
-# Cette fonction range automatiquement les cartes des colonnes vers les fondations en cas de victoire assurée
-# Elle prend en paramétre la partie (dictoinnaire)
+# Cette fonction envoie automatiquement toutes les cartes des colonnes
+# dans les fondations (à utiliser UNIQUEMENT quand la victoire est assurée)
+# Elle prend en paramètre la partie (dictionnaire) et ne renvoie rien
 def rangerAutomatiquement(partie):
-    while not partieGagnee(partie):
+    # On compte une seule fois les cartes restant dans les colonnes
+    nbCartesRestantes = 0
+    for colonne in partie["colonnes"]:
+        nbCartesRestantes += len(colonne["visibles"])
+
+    while nbCartesRestantes > 0:
         for colonne in partie["colonnes"]:
             if len(colonne["visibles"]) > 0:
                 carte = colonne["visibles"][-1]
@@ -501,6 +507,7 @@ def rangerAutomatiquement(partie):
 
                 if peutPoserSurFondation(carte, fondation):
                     fondation.append(colonne["visibles"].pop())
+                    nbCartesRestantes -= 1
 
 # À FAIRE - Point 3 : enregistrer la partie dans un fichier
 def sauvegarderPartie(partie):
