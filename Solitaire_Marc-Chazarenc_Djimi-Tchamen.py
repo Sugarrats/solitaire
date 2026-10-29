@@ -406,15 +406,25 @@ def deplacer(partie):
         if len(partie["defausse"]) > 0 and partie["defausse"][-1] == carte:
             emplacementCarte = "defausse"
 
+        # Recherche sur la dernière carte des fondations
+        fondationCarte = partie["fondations"][carte[1]]
+        if len(fondationCarte) > 0 and fondationCarte[-1] == carte:
+            emplacementCarte = "fondation"
+
         if emplacementCarte is None:
             print("Cette carte n'est pas disponible (｡ᵕ ◞ _◟)")
+
         else:
             destination = demanderDestination()
+
 
             if destination is None:
                 print("Destination invalide (｡ᵕ ◞ _◟)")
 
-            elif emplacementCarte != "defausse" and emplacementCarte[0] == destination:
+            elif emplacementCarte == "fondation" and destination == "f":
+                print("La carte est déjà là (｡ᵕ ◞ _◟)")
+
+            elif emplacementCarte != "defausse" and emplacementCarte != "fondation" and emplacementCarte[0] == destination:
                 print("La carte est déjà là (｡ᵕ ◞ _◟)")
 
             elif destination == "f":
@@ -447,6 +457,9 @@ def deplacer(partie):
                 if emplacementCarte == "defausse":
                     colonneArrivee["visibles"].append(partie["defausse"].pop())
 
+                elif emplacementCarte == "fondation":
+                    colonneArrivee["visibles"].append(partie["fondations"][carte[1]].pop())
+                    
                 else:
                     colonneDepart = partie["colonnes"][emplacementCarte[0]]
                     position = emplacementCarte[1]
@@ -520,11 +533,17 @@ def sauvegarderPartie(partie):
 
 
 
-# Cette procédure lit le fichier json de sauvegarde de l'état de la partie
-# elle ne prend pas de paramétres et ne renvoi rien
+# Cette fonction lit le fichier json de sauvegarde de l'état de la partie
+# Elle ne prend pas de paramètre
+# Elle renvoie la partie (dictionnaire), ou None si aucune sauvegarde n'existe
 def chargerPartie():
-    with open('sauvegarde_partie.json','r') as file:
-        partie = json.load(file)
+    if os.path.exists('sauvegarde_partie.json'):
+        with open('sauvegarde_partie.json','r') as file:
+            partie = json.load(file)
+    else:
+        print("Aucune partie sauvegardée (｡ᵕ ◞ _◟)")
+        partie = None
+
     return partie
 
 
