@@ -54,7 +54,6 @@ def creerColonnes(pioche):
 
 # Cette fonction crée les paramètres par défaut du jeu
 # Elle ne prend pas de paramètre et renvoie un dictionnaire
-# (ils seront modifiables au point d'étape 4)
 def creerParametres():
     parametres = {
         "cartesPiochees": 1,   
@@ -70,13 +69,9 @@ def creerPartie(parametres):
     pioche = creerPioche()
     colonnes = creerColonnes(pioche)
 
-    # Une fondation par couleur, vide au départ
-    fondations = {
-        "coeur": [],
-        "carreau": [],
-        "trefle": [],
-        "pique": []
-    }
+    # 4 fondations numérotées (f1 à f4), vides au départ
+    # Chacune accueille la famille de l'As qui y est posé en premier
+    fondations = [[], [], [], []]
 
     partie = {
         "pioche": pioche,           
@@ -87,6 +82,45 @@ def creerPartie(parametres):
     }
 
     return partie
+
+# ---------------------------------------------------------------------
+# TEST - À RETIRER AVANT LE RENDU
+# Cette fonction crée une partie presque gagnée pour tester la victoire assurée :
+# il ne reste qu'une carte dans la défausse (le valet de carreau).
+# En la jouant (sur la fondation ou sur la dame de trèfle), la victoire devient assurée.
+# Elle prend en paramètre les paramètres du jeu (dictionnaire)
+# Elle renvoie la partie (dictionnaire)
+def creerPartieTest(parametres):
+    # Fondations remplies de l'As au 10
+    fondations = []
+    for couleur in ["coeur", "carreau", "trefle", "pique"]:
+        fondation = []
+        for valeur in range(1, 11):
+            fondation.append([valeur, couleur])
+        fondations.append(fondation)
+
+    # Les figures restantes, toutes visibles, en suites décroissantes alternées
+    colonnes = [
+        {"cachees": [], "visibles": [[13, "pique"], [12, "coeur"], [11, "pique"]]},
+        {"cachees": [], "visibles": [[13, "coeur"], [12, "pique"], [11, "coeur"]]},
+        {"cachees": [], "visibles": [[13, "trefle"], [12, "carreau"], [11, "trefle"]]},
+        {"cachees": [], "visibles": [[13, "carreau"], [12, "trefle"]]},
+        {"cachees": [], "visibles": []},
+        {"cachees": [], "visibles": []},
+        {"cachees": [], "visibles": []}
+    ]
+
+    partie = {
+        "pioche": [],
+        "defausse": [[11, "carreau"]],
+        "colonnes": colonnes,
+        "fondations": fondations,
+        "parametres": parametres
+    }
+
+    return partie
+# ---------------------------------------------------------------------
+
 
 def activerCouleurs():
     if os.name == "nt":  
@@ -142,12 +176,46 @@ def texteEnCarte(texte):
     return carteCherchee
 
 
+# Cette fonction transforme une carte (liste) en texte tel que le joueur doit le saisir
+# Elle prend en paramètre la carte (liste)
+# Elle renvoie le texte, par exemple [7, "coeur"] -> "7co" et [1, "pique"] -> "api"
+def carteEnSaisie(carte):
+    noms = {1: "a", 11: "v", 12: "d", 13: "r"}
+    codes = {"coeur": "co", "carreau": "ca", "trefle": "tr", "pique": "pi"}
+
+    valeur = carte[0]
+
+    if valeur in noms:
+        texteValeur = noms[valeur]
+    else:
+        texteValeur = str(valeur)
+
+    return texteValeur + codes[carte[1]]
+
+
+# Cette fonction transforme un texte rentré par l'utilisateur en destination
+# Elle prend en paramètre le texte saisi
+# Elle renvoie une liste [type, indice] :
+#   "3"  -> ["colonne", 2]     (colonnes 1 à 7 -> indices 0 à 6)
+#   "f2" -> ["fondation", 1]   (fondations f1 à f4 -> indices 0 à 3)
+# ou None si la saisie est invalide
+def texteEnDestination(texte):
+    if texte.isdigit() and 1 <= int(texte) <= 7:
+        destination = ["colonne", int(texte) - 1]
+
+    elif len(texte) == 2 and texte[0] == "f" and texte[1] in "1234":
+        destination = ["fondation", int(texte[1]) - 1]
+
+    else:
+        destination = None
+
+    return destination
+
+
 # Cette fonction renvoie le texte d'une carte, complété par des espaces
 # jusqu'à la largeur demandée, et écrit en rouge si c'est un coeur ou un carreau
 # Elle prend en paramètre la carte (liste) et la largeur (entier)
 def carteEnCouleur(carte, largeur):
-    # On complète AVANT d'ajouter la couleur : les codes couleur sont des
-    # caractères invisibles qui fausseraient le calcul de ljust()
     texte = carteEnTexte(carte).ljust(largeur)
 
     if carte[1] == "coeur" or carte[1] == "carreau":
@@ -169,21 +237,39 @@ def afficherPartie(partie):
     else:
         textePioche = "[  ]"
 
+    # affichage de la défausse
     if len(partie["defausse"]) > 0:
-        texteDefausse = carteEnCouleur(partie["defausse"][-1], 0)
+
+        # si on pioche une carte seule la derniére est affiché
+        if partie["parametres"]["cartesPiochees"] == 1:
+            texteDefausse = carteEnCouleur(partie["defausse"][-1], 0)
+
+        # sinon les trois derniéres sont affichées
+        else:
+            texteDefausse = ""
+            for carte in partie["defausse"][-3:]:
+                texteDefausse += carteEnCouleur(carte, 4)
+            
+
     else:
         texteDefausse = "[  ]"
 
     ligneHaut = "Pioche: " + textePioche + " (" + str(nbPioche) + ") " +  "Défausse: " + texteDefausse + " (" + str(nbDefausse) + ")" 
-    ligneFondation = "Fondations: "
-    for couleur in partie["fondations"]:
-        fondation = partie["fondations"][couleur]
+    # Numéros des fondations, alignés au-dessus de chaque fondation
+    debutLigne = "Fondations: "
+    numerosFondation = " " * len(debutLigne)
+    ligneFondation = debutLigne
+    for f in range(len(partie["fondations"])):
+        numerosFondation += ("f" + str(f + 1)).ljust(largeur)
+
+        fondation = partie["fondations"][f]
         if len(fondation) > 0:
             ligneFondation += carteEnCouleur(fondation[-1], largeur)
         else:
             ligneFondation += "[  ]".ljust(largeur)
 
     print(ligneHaut)
+    print(numerosFondation)
     print(ligneFondation)
     print()
 
@@ -233,7 +319,7 @@ def afficherRegles():
     print("- Seul un Roi peut être posé sur une colonne vide.")
     print("- Quand on libère une carte cachée, elle est retournée.")
     print("- La pioche permet de retourner des cartes sur la défausse.")
-    input("Appuyez sur Entrée pour revenir au menu...")
+    input("Appuyez sur Entrée pour quitter les régles...")
 
 
 # Cette fonction est le menu principal du jeu
@@ -268,36 +354,87 @@ def menu():
         elif choix == "5":
             continuer = False
             print("Au revoir !")
+        elif choix == "t":   # TEST - À RETIRER AVANT LE RENDU
+            partie = creerPartieTest(parametres)
+            jouer(partie)
         else:
             print("Choix invalide, tapez un nombre entre 1 et 5 (｡ᵕ ◞ _◟)")
 
 
 # Cette fonction fait tourner une partie jusqu'à ce que le joueur
 # quitte ou gagne
+# Toutes les commandes se font en une seule saisie, par exemple :
+#   p          -> piocher
+#   d 7co 3    -> déplacer le 7 de coeur sur la colonne 3
+#   d aco f1   -> déplacer l'as de coeur sur la fondation 1
 # Elle prend en paramètre la partie (dictionnaire) et ne renvoie rien
 def jouer(partie):
     enCours = True
+    historique = []
 
     while enCours:
         print()
         afficherPartie(partie)
         print()
-        print("Commandes : [p] piocher  [d] déplacer")
+        print("Commandes : [p] piocher  [d] déplacer (ex : d 7co 3, d aco f1)")
         print("            [a] aide [s] sauvegarder")
+        print("            [an] annuler coup [r] régles")
         print("            [q] quitter")
-        commande = input("> ").lower()
-        commande = commande.replace(" ","")
 
-        if commande == "p":
+        # On découpe la saisie en mots : "d 7co 3" -> ["d", "7co", "3"]
+        mots = input("> ").lower().split()
+
+        if len(mots) == 0:
+            print("Commande vide (｡ᵕ ◞ _◟)")
+
+        elif mots[0] == "d":
+            if len(mots) != 3:
+                print("Format : d <carte> <destination>, ex : d 7co 3 ou d aco f1 (｡ᵕ ◞ _◟)")
+
+            else:
+                carte = texteEnCarte(mots[1])
+                destination = texteEnDestination(mots[2])
+
+                if carte is None:
+                    print("Carte invalide (valeur A, 2-10, V, D, R puis co, ca, tr, pi) (｡ᵕ ◞ _◟)")
+
+                elif destination is None:
+                    print("Destination invalide (1 à 7 pour les colonnes, f1 à f4 pour les fondations) (｡ᵕ ◞ _◟)")
+
+                else:
+                    historique.append(json.dumps(partie))
+                    deplacer(partie, carte, destination)
+
+        elif len(mots) > 1:
+            print("Commande inconnue (｡ᵕ ◞ _◟)")
+
+        elif mots[0] == "p":
+            historique.append(json.dumps(partie))
             piocher(partie)
-        elif commande == "d":
-            deplacer(partie)
-        elif commande == "a":
-            proposerCoups(partie)
-        elif commande == "s":
+
+        elif mots[0] == "a":
+            if partie["parametres"]["aideActive"] == True:
+                proposerCoups(partie)
+
+            else:
+                print("L'aide est désactivée")
+
+        elif mots[0] == "s":
             sauvegarderPartie(partie)
-        elif commande == "q":
+
+        elif mots[0] == "an":
+            if len(historique) == 0:
+                print("aucun coup à annuler (｡ᵕ ◞ _◟)")
+
+            else :
+                partie = json.loads(historique.pop())
+
+        elif mots[0] == "r":
+            afficherRegles()
+
+        elif mots[0] == "q":
             enCours = False
+
         else:
             print("Commande inconnue (｡ᵕ ◞ _◟)")
 
@@ -333,48 +470,30 @@ def peutPoserSurColonne(carte, colonne):
 # Elle renvoie True si le déplacement respecte les règles, False sinon
 def peutPoserSurFondation(carte, fondation):
 
+    # Fondation vide : seul un As peut y être posé
     if len(fondation) == 0:
         autorise = carte[0] == 1
 
+    # Sinon : même famille et valeur supérieure d'un rang
     else:
         carteDessous = fondation[-1]
-        autorise = carte[0] == carteDessous[0] + 1
+        autorise = carte[0] == carteDessous[0] + 1 and carte[1] == carteDessous[1]
 
     return autorise
 
-# Cette fonction demande au joueur la destination
-# Elle ne prend pas de paramètre
-# Elle renvoie l'indice de la colonne si la destination est une colonne (0 à 6), 
-# f si c'est une fondation 
-# ou None si la saisie est invalide
-def demanderDestination():
-    print("Ou faut il poser la carte ? (1 à 7 pour les colonnes f pour une fondation)")
-    saisie = input(" -> ").replace(" ", "")
-    saisie = saisie.lower()
 
-    if saisie.isdigit() and 1 <= int(saisie) <= 7:
-        destination = int(saisie) - 1  
+# Cette fonction cherche une fondation sur laquelle la carte peut être posée
+# Elle prend en paramètre la carte (liste) et la liste des fondations
+# Elle renvoie l'indice de la première fondation possible (0 à 3), ou None s'il n'y en a pas
+def trouverFondation(carte, fondations):
+    numero = None
 
-    elif saisie == "f" :
-        destination = "f"
+    for f in range(len(fondations)):
+        if numero is None and peutPoserSurFondation(carte, fondations[f]):
+            numero = f
 
-    else:
-        destination = None
+    return numero
 
-    return destination
-
-
-
-# Cette fonction demande au joueur la carte à déplacer
-# Elle ne prend pas de paramètre
-# Elle renvoie la carte (liste), ou None si la saisie est invalide
-def demanderCarte():
-    print("Quelle carte faut-il déplacer ? (valeur A, 2-10, V, D, R puis couleur co, ca, tr, pi)")
-    saisie = input(" -> ")
-    saisie = saisie.replace(" ", "")
-    saisie = saisie.lower()
-
-    return texteEnCarte(saisie)
 
 # Cette fonction retourne la dernière carte cachée d'une colonne
 # si plus aucune carte n'est visible
@@ -386,89 +505,86 @@ def retournerCarteCachee(colonne):
 
 
 # Cette fonction gère un déplacement complet demandé par le joueur
-# Elle prend en paramètre la partie (dictionnaire) et ne renvoie rien
-def deplacer(partie):
+# Elle prend en paramètre la partie (dictionnaire), la carte à déplacer (liste)
+# et la destination (liste ["colonne", indice] ou ["fondation", indice])
+# La carte et la destination ont déjà été vérifiées par jouer()
+# Elle ne renvoie rien
+def deplacer(partie, carte, destination):
+    # Emplacement de la carte, sous forme de liste :
+    #   ["colonne", indice de la colonne, position dans les cartes visibles]
+    #   ["defausse"]
+    #   ["fondation", indice de la fondation]
     emplacementCarte = None
 
-    carte = demanderCarte()
+    # Recherche dans les cartes visibles de chaque colonne
+    for i in range(len(partie["colonnes"])):
+        visibles = partie["colonnes"][i]["visibles"]
+        for j in range(len(visibles)):
+            if visibles[j] == carte:
+                emplacementCarte = ["colonne", i, j]
 
-    if carte is None:
-        print("Carte invalide.")
-    else:
-        # Recherche dans les cartes visibles de chaque colonne
-        for i in range(len(partie["colonnes"])):
-            visibles = partie["colonnes"][i]["visibles"]
-            for j in range(len(visibles)):
-                if visibles[j] == carte:
-                    emplacementCarte = (i, j)
+    # Recherche sur la dernière carte de la défausse
+    if len(partie["defausse"]) > 0 and partie["defausse"][-1] == carte:
+        emplacementCarte = ["defausse"]
 
-        # Recherche sur la dernière carte de la défausse
-        if len(partie["defausse"]) > 0 and partie["defausse"][-1] == carte:
-            emplacementCarte = "defausse"
+    # Recherche sur la dernière carte de chaque fondation
+    for f in range(len(partie["fondations"])):
+        fondation = partie["fondations"][f]
+        if len(fondation) > 0 and fondation[-1] == carte:
+            emplacementCarte = ["fondation", f]
 
-        # Recherche sur la dernière carte des fondations
-        fondationCarte = partie["fondations"][carte[1]]
-        if len(fondationCarte) > 0 and fondationCarte[-1] == carte:
-            emplacementCarte = "fondation"
+    typeArrivee = destination[0]
+    indiceArrivee = destination[1]
 
-        if emplacementCarte is None:
-            print("Cette carte n'est pas disponible (｡ᵕ ◞ _◟)")
+    if emplacementCarte is None:
+        print("Cette carte n'est pas disponible (｡ᵕ ◞ _◟)")
+
+    elif emplacementCarte[0] == typeArrivee and emplacementCarte[1] == indiceArrivee:
+        print("La carte est déjà là (｡ᵕ ◞ _◟)")
+
+    elif typeArrivee == "fondation":
+        fondationArrivee = partie["fondations"][indiceArrivee]
+
+        if not peutPoserSurFondation(carte, fondationArrivee):
+            print("Déplacement interdit par les règles (｡ᵕ ◞ _◟)")
+
+        elif emplacementCarte[0] == "defausse":
+            fondationArrivee.append(partie["defausse"].pop())
+
+        elif emplacementCarte[0] == "fondation":
+            fondationArrivee.append(partie["fondations"][emplacementCarte[1]].pop())
 
         else:
-            destination = demanderDestination()
+            colonneDepart = partie["colonnes"][emplacementCarte[1]]
 
-
-            if destination is None:
-                print("Destination invalide (｡ᵕ ◞ _◟)")
-
-            elif emplacementCarte == "fondation" and destination == "f":
-                print("La carte est déjà là (｡ᵕ ◞ _◟)")
-
-            elif emplacementCarte != "defausse" and emplacementCarte != "fondation" and emplacementCarte[0] == destination:
-                print("La carte est déjà là (｡ᵕ ◞ _◟)")
-
-            elif destination == "f":
-
-                if not peutPoserSurFondation(carte, partie["fondations"][carte[1]]):
-                    print("Déplacement interdit par les règles (｡ᵕ ◞ _◟)")
-
-                else :
-                    fondationArrivee = partie["fondations"][carte[1]]
-
-                    if emplacementCarte == "defausse":
-                        fondationArrivee.append(partie["defausse"].pop())
-
-                    else:
-                        colonneDepart = partie["colonnes"][emplacementCarte[0]]
-
-                        if emplacementCarte[1] != len(colonneDepart["visibles"]) - 1:
-                            print("Une seule carte à la fois dans la fondation (｡ᵕ ◞ _◟)")
-
-                        else:
-                            fondationArrivee.append(colonneDepart["visibles"].pop())
-                            retournerCarteCachee(colonneDepart)
-
-            elif not peutPoserSurColonne(carte, partie["colonnes"][destination]):
-                print("Déplacement interdit par les règles (｡ᵕ ◞ _◟)")
+            if emplacementCarte[2] != len(colonneDepart["visibles"]) - 1:
+                print("Une seule carte à la fois dans la fondation (｡ᵕ ◞ _◟)")
 
             else:
-                colonneArrivee = partie["colonnes"][destination]
+                fondationArrivee.append(colonneDepart["visibles"].pop())
+                retournerCarteCachee(colonneDepart)
 
-                if emplacementCarte == "defausse":
-                    colonneArrivee["visibles"].append(partie["defausse"].pop())
+    elif not peutPoserSurColonne(carte, partie["colonnes"][indiceArrivee]):
+        print("Déplacement interdit par les règles (｡ᵕ ◞ _◟)")
 
-                elif emplacementCarte == "fondation":
-                    colonneArrivee["visibles"].append(partie["fondations"][carte[1]].pop())
-                    
-                else:
-                    colonneDepart = partie["colonnes"][emplacementCarte[0]]
-                    position = emplacementCarte[1]
+    else:
+        colonneArrivee = partie["colonnes"][indiceArrivee]
 
-                    cartesDeplacees = colonneDepart["visibles"][position:]
-                    colonneDepart["visibles"] = colonneDepart["visibles"][:position]
-                    colonneArrivee["visibles"] += cartesDeplacees
+        if emplacementCarte[0] == "defausse":
+            colonneArrivee["visibles"].append(partie["defausse"].pop())
 
-                    retournerCarteCachee(colonneDepart)
+        elif emplacementCarte[0] == "fondation":
+            colonneArrivee["visibles"].append(partie["fondations"][emplacementCarte[1]].pop())
+
+        else:
+            colonneDepart = partie["colonnes"][emplacementCarte[1]]
+            position = emplacementCarte[2]
+
+            cartesDeplacees = colonneDepart["visibles"][position:]
+            colonneDepart["visibles"] = colonneDepart["visibles"][:position]
+            colonneArrivee["visibles"] += cartesDeplacees
+
+            retournerCarteCachee(colonneDepart)
 
 
 
@@ -517,10 +633,10 @@ def rangerAutomatiquement(partie):
         for colonne in partie["colonnes"]:
             if len(colonne["visibles"]) > 0:
                 carte = colonne["visibles"][-1]
-                fondation = partie["fondations"][carte[1]]
+                numero = trouverFondation(carte, partie["fondations"])
 
-                if peutPoserSurFondation(carte, fondation):
-                    fondation.append(colonne["visibles"].pop())
+                if numero is not None:
+                    partie["fondations"][numero].append(colonne["visibles"].pop())
                     nbCartesRestantes -= 1
 
 # Cette procédure enregistre l'état de la partie dans un fichier json
@@ -547,15 +663,178 @@ def chargerPartie():
     return partie
 
 
-# À FAIRE - Point 3 : afficher la liste du meilleur coup possible
+# Cette fonction va afficher touts les coups disponibles par ordre d'importance.
+# elle prend la partie en paramétre et retourne une liste de coups
 def proposerCoups(partie):
-    print("Aide : fonctionnalité pas encore disponible.")
+    coups = []
+    nbCarteDansPioche = len(partie["pioche"])
+    nbCarteDansDefausse = len(partie["defausse"])
+    nbCartesCachees = 0
+
+    for colonne in partie["colonnes"]:
+        if len(colonne["cachees"]) > 0:
+            nbCartesCachees += len(colonne["cachees"])
 
 
-# À FAIRE - Point 4 : menu pour changer les paramètres (difficulté)
+    # Colonne -> fondation
+    for nbCachees in range(6, -1, -1):
+        for i in range(len(partie["colonnes"])):
+            visibles = partie["colonnes"][i]["visibles"]
+
+            cachees = partie["colonnes"][i]["cachees"]
+            if len(cachees) == nbCachees and len(visibles) > 0:
+                carte = visibles[-1]
+                numero = trouverFondation(carte, partie["fondations"])
+
+                if numero is not None:
+                    nomFondation = "f" + str(numero + 1)
+
+                    # Si c'est un coup gagnant
+                    if nbCarteDansPioche == 0 and nbCarteDansDefausse == 0 and nbCartesCachees == 1 and len(cachees) == 1 and len(visibles) == 1:
+                        coupPropose = "★ Coup gagnant : "+ carteEnTexte(carte) + " (colonne "+ str(i+1) + ") " + "-> fondation " + nomFondation + " : range une carte en fondation"
+                        coupPropose += "  -> tapez : d " + carteEnSaisie(carte) + " " + nomFondation
+                        coups.insert(0, coupPropose)
+
+                    else :
+                        coupPropose = carteEnTexte(carte) + " (Colonne " + str(i+1) +") " + "-> fondation " + nomFondation + " : range une carte en fondation"
+                        coupPropose += "  -> tapez : d " + carteEnSaisie(carte) + " " + nomFondation
+                        coups.append(coupPropose)
+
+    # Défausse -> fondation
+    if len(partie["defausse"]) > 0:
+        carte = partie["defausse"][-1]
+        numero = trouverFondation(carte, partie["fondations"])
+
+        if numero is not None:
+            nomFondation = "f" + str(numero + 1)
+
+            # Si c'est un coup gagnant
+            if nbCartesCachees == 0 and nbCarteDansDefausse == 1 and nbCarteDansPioche == 0:
+                coupPropose = "★ Coup gagnant : "+ carteEnTexte(carte) + " (défausse) -> fondation " + nomFondation + " : range une carte en fondation"
+                coupPropose += "  -> tapez : d " + carteEnSaisie(carte) + " " + nomFondation
+                coups.insert(0, coupPropose)
+
+            else:
+                coupPropose = carteEnTexte(carte) + " (défausse) -> fondation " + nomFondation + " : range une carte en fondation"
+                coupPropose += "  -> tapez : d " + carteEnSaisie(carte) + " " + nomFondation
+                coups.append(coupPropose)
+
+    # Colonne -> colonne
+    for nbCachees in range(6, 0, -1):
+        for i in range(len(partie["colonnes"])):
+            visibles = partie["colonnes"][i]["visibles"]
+            cachees = partie["colonnes"][i]["cachees"]
+            
+            if len(cachees) == nbCachees and len(visibles) > 0:
+                carte = visibles[0]
+
+        for k in range(len(partie["colonnes"])):
+            visibles = partie["colonnes"][i]["visibles"]
+            cachees = partie["colonnes"][i]["cachees"]
+
+            if k != i:
+                if peutPoserSurColonne(carte, partie["colonnes"][k]):
+                    if nbCartesCachees == 1 and len(cachees) == 1:
+                         coupPropose = "★ Coup gagnant : "+ carteEnTexte(carte) + " (colonne "+ str(i+1) + ") " + "-> colonne" + str(k+1) + " : retourne une carte caché"
+                         coupPropose += "  -> tapez : d " + carteEnSaisie(carte) + " " + str(k+1)
+                         coups.insert(0, coupPropose)
+
+                    else :
+                        coupPropose = carteEnTexte(carte) + " (colonne " + str(i+1) + ") -> colonne " + str(k+1) + " : retourne une carte cachée"
+                        coupPropose += "  -> tapez : d " + carteEnSaisie(carte) + " " + str(k+1)
+                        coups.append(coupPropose)
+
+    for i in range(len(coups)):
+        print(str(i + 1) + ". " + coups[i])
+
+# Cette fonction crée les préréglages de difficulté
+# Elle ne prend pas de paramètre et renvoie un dictionnaire
+# Chaque difficulté correspond à des valeurs déjà choisies pour les paramètres
+def creerDifficultes():
+    difficultes = {
+        "facile":    {"cartesPiochees": 1, "aideActive": True},
+        "normal":    {"cartesPiochees": 3, "aideActive": True},
+        "difficile": {"cartesPiochees": 3, "aideActive": False}
+    }
+    return difficultes
+
+
+# Cette fonction retrouve le nom de la difficulté qui correspond aux paramètres actuels
+# Elle prend en paramètre les paramètres (dictionnaire)
+# Elle renvoie le nom de la difficulté, ou "personnalisée" si aucune ne correspond
+def trouverDifficulte(parametres):
+    difficultes = creerDifficultes()
+    nom = "personnalisée"
+
+    for d in difficultes:
+        if difficultes[d]["cartesPiochees"] == parametres["cartesPiochees"] and difficultes[d]["aideActive"] == parametres["aideActive"]:
+            nom = d
+
+    return nom
+
+
+# Cette procédure permet de choisir une difficulté
+# Elle prend en paramètre les paramètres (dictionnaire) et les modifie directement
+def choisirDifficulte(parametres):
+    difficultes = creerDifficultes()
+    noms = ["facile", "normal", "difficile"]
+
+    print("1 - Facile    : 1 carte piochée, aide activée")
+    print("2 - Normal    : 3 cartes piochées, aide activée")
+    print("3 - Difficile : 3 cartes piochées, aide désactivée")
+
+    reponse = input(" -> ").replace(" ", "")
+
+    while reponse not in ("1", "2", "3"):
+        print("Saisie incorrecte, tapez 1, 2 ou 3")
+        reponse = input(" -> ").replace(" ", "")
+
+    choisie = difficultes[noms[int(reponse) - 1]]
+
+    # On modifie le dictionnaire existant (on ne le remplace pas)
+    # pour que le changement soit visible dans menu()
+    parametres["cartesPiochees"] = choisie["cartesPiochees"]
+    parametres["aideActive"] = choisie["aideActive"]
+
+# Cette procédure permet de changer les paramétres
+# elle prend en paramétre le dictionnaire paramétres
 def modifierParametres(parametres):
-    print("Paramètres : fonctionnalité pas encore disponible.")
+    retour = False
 
+    print("========================== Paramètres ==========================")
+    while not retour:
+
+        if parametres["aideActive"]:
+            etatAide = "activée"
+        else:
+            etatAide = "désactivée"
+
+        print(f"Difficulté actuelle : {trouverDifficulte(parametres)}")
+        print(f"1 - Activer ou désactiver l'aide aux coups possibles : {etatAide}")
+        print(f"2 - Changer le nombre de cartes piochées (1 ou 3) : {parametres['cartesPiochees']}")
+        print("3 - Choisir une difficulté (facile, normal, difficile)")
+        print("4 - Retour au menu principal")
+
+        reponse = input(" -> ").replace(" ", "")
+
+        while reponse not in ("1", "2", "3", "4"):
+            print("Saisie incorrecte, tapez 1, 2, 3 ou 4")
+            reponse = input(" -> ").replace(" ", "")
+
+        if reponse == "1":
+            parametres["aideActive"] = not parametres["aideActive"]
+
+        elif reponse == "2":
+            if parametres["cartesPiochees"] == 1:
+                parametres["cartesPiochees"] = 3
+            else:
+                parametres["cartesPiochees"] = 1
+
+        elif reponse == "3":
+            choisirDifficulte(parametres)
+
+        else:
+            retour = True
 
 # -------------------
 # Programme principal
