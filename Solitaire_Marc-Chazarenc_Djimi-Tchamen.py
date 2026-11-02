@@ -3,7 +3,6 @@
 # ------------
 import random
 import os
-import ctypes
 import json
 
 ROUGE = "\033[91m"
@@ -122,13 +121,12 @@ def creerPartieTest(parametres):
 # ---------------------------------------------------------------------
 
 
+# Cette procédure active les couleurs dans la console Windows
+# os.system("") lance une commande vide : la console Windows active alors
+# les codes couleur ANSI et les garde activés pour la suite du programme
 def activerCouleurs():
-    if os.name == "nt":  
-        kernel32 = ctypes.windll.kernel32
-        console = kernel32.GetStdHandle(-11)            
-        mode = ctypes.c_ulong()
-        kernel32.GetConsoleMode(console, ctypes.byref(mode))
-        kernel32.SetConsoleMode(console, mode.value | 0x0004) 
+    if os.name == "nt":
+        os.system("")
 
 
 
@@ -151,37 +149,13 @@ def carteEnTexte(carte):
 
     return texteValeur + symboles[couleur]
 
-# Cette fonction transforme un texte rentré par l'utilisateur en carte (liste)
-# Elle prend en paramètre le texte saisi
-# Elle renvoie la carte [valeur, couleur], ou None si la saisie est invalide
-def texteEnCarte(texte):
-    num = {"a": 1, "v": 11, "d": 12, "r": 13}
-    symboles = {"co": "coeur", "ca": "carreau", "tr": "trefle", "pi": "pique"}
 
-    valeur = texte[:-2]    
-    couleur = texte[-2:]  
-
-    if couleur not in symboles:
-        carteCherchee = None
-
-    elif valeur in num:
-        carteCherchee = [num[valeur], symboles[couleur]]
-
-    elif valeur.isdigit() and 1 <= int(valeur) <= 13:
-        carteCherchee = [int(valeur), symboles[couleur]]
-
-    else:
-        carteCherchee = None
-
-    return carteCherchee
-
-
-# Cette fonction transforme une carte (liste) en texte tel que le joueur doit le saisir
+# Cette fonction transforme une carte (liste) en texte à taper par le joueur
+# Elle sert à l'aide, pour indiquer la commande exacte à saisir
 # Elle prend en paramètre la carte (liste)
-# Elle renvoie le texte, par exemple [7, "coeur"] -> "7co" et [1, "pique"] -> "api"
+# Elle renvoie le texte de saisie, par exemple [7, "coeur"] -> "7coeur"
 def carteEnSaisie(carte):
     noms = {1: "a", 11: "v", 12: "d", 13: "r"}
-    codes = {"coeur": "co", "carreau": "ca", "trefle": "tr", "pique": "pi"}
 
     valeur = carte[0]
 
@@ -190,7 +164,37 @@ def carteEnSaisie(carte):
     else:
         texteValeur = str(valeur)
 
-    return texteValeur + codes[carte[1]]
+    return texteValeur + carte[1]
+
+
+# Cette fonction transforme un texte rentré par l'utilisateur en carte (liste)
+# Elle accepte le nom complet de la famille (coeur, trèfle...) ou son abréviation (co, tr...)
+# Elle prend en paramètre le texte saisi
+# Elle renvoie la carte [valeur, couleur], ou None si la saisie est invalide
+def texteEnCarte(texte):
+    num = {"a": 1, "as": 1, "v": 11, "d": 12, "r": 13}
+    familles = {
+        "coeur": "coeur", "cœur": "coeur", "co": "coeur",
+        "carreau": "carreau", "ca": "carreau",
+        "trefle": "trefle", "trèfle": "trefle", "tr": "trefle",
+        "pique": "pique", "pi": "pique"
+    }
+
+    carteCherchee = None
+    trouvee = False
+
+    for nom in familles:
+        if not trouvee and texte.endswith(nom):
+            trouvee = True
+            valeur = texte[:-len(nom)]   # ce qui est devant le nom de la famille
+            couleur = familles[nom]
+
+            if valeur in num:
+                carteCherchee = [num[valeur], couleur]
+            elif valeur.isdigit() and 1 <= int(valeur) <= 13:
+                carteCherchee = [int(valeur), couleur]
+
+    return carteCherchee
 
 
 # Cette fonction transforme un texte rentré par l'utilisateur en destination
@@ -319,6 +323,13 @@ def afficherRegles():
     print("- Seul un Roi peut être posé sur une colonne vide.")
     print("- Quand on libère une carte cachée, elle est retournée.")
     print("- La pioche permet de retourner des cartes sur la défausse.")
+    print()
+    print("===== SAISIE D'UN DÉPLACEMENT =====")
+    print("d <carte> <destination>")
+    print("- Carte : valeur (A, 2-10, V, D, R) puis famille (coeur, carreau, trèfle, pique)")
+    print("  ou son abréviation (co, ca, tr, pi). Ex : 7coeur, 7 coeur, 7co")
+    print("- Destination : 1 à 7 pour les colonnes, f1 à f4 pour les fondations")
+    print("Exemples : d 7 coeur 3   /   d a pique f1   /   d vca 5")
     input("Appuyez sur Entrée pour quitter les régles...")
 
 
@@ -364,39 +375,43 @@ def menu():
 # Cette fonction fait tourner une partie jusqu'à ce que le joueur
 # quitte ou gagne
 # Toutes les commandes se font en une seule saisie, par exemple :
-#   p          -> piocher
-#   d 7co 3    -> déplacer le 7 de coeur sur la colonne 3
-#   d aco f1   -> déplacer l'as de coeur sur la fondation 1
+#   p              -> piocher
+#   d 7 coeur 3    -> déplacer le 7 de coeur sur la colonne 3
+#   d a coeur f1   -> déplacer l'as de coeur sur la fondation 1
+#   o              -> l'ordinateur joue tout seul
 # Elle prend en paramètre la partie (dictionnaire) et ne renvoie rien
 def jouer(partie):
     enCours = True
     historique = []
 
     while enCours:
-        print()
         afficherPartie(partie)
         print()
-        print("Commandes : [p] piocher  [d] déplacer (ex : d 7co 3, d aco f1)")
-        print("            [a] aide [s] sauvegarder")
-        print("            [an] annuler coup [r] régles")
-        print("            [q] quitter")
+        print("Commandes : [p] piocher")
+        print("            [d] déplacer (ex : d 7 coeur 3, d a pique f1)")
+        print("            [a] aide [o] l'ordinateur joue")
+        print("            [s] sauvegarder [an] annuler coup")
+        print("            [r] régles [q] quitter")
 
-        # On découpe la saisie en mots : "d 7co 3" -> ["d", "7co", "3"]
+        # On découpe la saisie en mots : "d 7 coeur 3" -> ["d", "7", "coeur", "3"]
         mots = input("> ").lower().split()
 
         if len(mots) == 0:
             print("Commande vide (｡ᵕ ◞ _◟)")
 
         elif mots[0] == "d":
-            if len(mots) != 3:
-                print("Format : d <carte> <destination>, ex : d 7co 3 ou d aco f1 (｡ᵕ ◞ _◟)")
+            if len(mots) < 3:
+                print("Format : d <carte> <destination>, ex : d 7 coeur 3 ou d a pique f1 (｡ᵕ ◞ _◟)")
 
             else:
-                carte = texteEnCarte(mots[1])
-                destination = texteEnDestination(mots[2])
+                # La destination est toujours le dernier mot,
+                # tout ce qui est entre "d" et la destination forme la carte
+                # "d 7 coeur 3" -> carte "7coeur", destination "3"
+                carte = texteEnCarte("".join(mots[1:-1]))
+                destination = texteEnDestination(mots[-1])
 
                 if carte is None:
-                    print("Carte invalide (valeur A, 2-10, V, D, R puis co, ca, tr, pi) (｡ᵕ ◞ _◟)")
+                    print("Carte invalide (valeur A, 2-10, V, D, R puis coeur, carreau, trèfle, pique ou co, ca, tr, pi) (｡ᵕ ◞ _◟)")
 
                 elif destination is None:
                     print("Destination invalide (1 à 7 pour les colonnes, f1 à f4 pour les fondations) (｡ᵕ ◞ _◟)")
@@ -418,6 +433,13 @@ def jouer(partie):
 
             else:
                 print("L'aide est désactivée")
+
+        elif mots[0] == "o":
+            if partie["parametres"]["aideActive"] == True:
+                ordinateurJoue(partie, historique)
+
+            else:
+                print("L'aide est désactivée, l'ordinateur ne peut pas jouer")
 
         elif mots[0] == "s":
             sauvegarderPartie(partie)
@@ -663,89 +685,229 @@ def chargerPartie():
     return partie
 
 
-# Cette fonction va afficher touts les coups disponibles par ordre d'importance.
-# elle prend la partie en paramétre et retourne une liste de coups
-def proposerCoups(partie):
-    coups = []
-    nbCarteDansPioche = len(partie["pioche"])
-    nbCarteDansDefausse = len(partie["defausse"])
-    nbCartesCachees = 0
+# Cette fonction cherche tous les déplacements possibles et les classe par ordre d'importance
+# Elle prend en paramètre la partie (dictionnaire)
+# Elle renvoie la liste des coups, chaque coup est un dictionnaire :
+#   {"carte": [7, "coeur"], "depart": "colonne 3",
+#    "destination": ["fondation", 0], "raison": "retourne une carte cachée"}
+def trouverCoups(partie):
+    colonnes = partie["colonnes"]
+    fondations = partie["fondations"]
 
-    for colonne in partie["colonnes"]:
-        if len(colonne["cachees"]) > 0:
-            nbCartesCachees += len(colonne["cachees"])
+    coupsRevelent = []      # priorité 1 : coups qui retournent une carte cachée
+    coupsDefausse = []      # priorité 2 : coups qui jouent la carte de la défausse
+    coupsFondation = []     # priorité 3 : les autres coups vers une fondation
+    coupsPreparation = []   # priorité 4 : coups qui préparent un coup utile
 
+    # --- Priorité 1 : libérer une carte cachée ---
+    # On commence par les colonnes qui ont le plus de cartes cachées
+    for nbCachees in range(6, 0, -1):
+        for i in range(len(colonnes)):
+            visibles = colonnes[i]["visibles"]
 
-    # Colonne -> fondation
-    for nbCachees in range(6, -1, -1):
-        for i in range(len(partie["colonnes"])):
-            visibles = partie["colonnes"][i]["visibles"]
+            if len(colonnes[i]["cachees"]) == nbCachees and len(visibles) > 0:
 
-            cachees = partie["colonnes"][i]["cachees"]
-            if len(cachees) == nbCachees and len(visibles) > 0:
-                carte = visibles[-1]
-                numero = trouverFondation(carte, partie["fondations"])
+                # S'il n'y a qu'une carte visible, l'envoyer en fondation libère la carte cachée
+                if len(visibles) == 1:
+                    numero = trouverFondation(visibles[0], fondations)
+                    if numero is not None:
+                        coupsRevelent.append({"carte": visibles[0], "depart": "colonne " + str(i + 1),
+                                              "destination": ["fondation", numero],
+                                              "raison": "retourne une carte cachée"})
 
-                if numero is not None:
-                    nomFondation = "f" + str(numero + 1)
+                # Déplacer toutes les cartes visibles (à partir de la première) sur une autre colonne
+                # libère aussi la carte cachée
+                for k in range(len(colonnes)):
+                    if k != i and peutPoserSurColonne(visibles[0], colonnes[k]):
+                        coupsRevelent.append({"carte": visibles[0], "depart": "colonne " + str(i + 1),
+                                              "destination": ["colonne", k],
+                                              "raison": "retourne une carte cachée"})
 
-                    # Si c'est un coup gagnant
-                    if nbCarteDansPioche == 0 and nbCarteDansDefausse == 0 and nbCartesCachees == 1 and len(cachees) == 1 and len(visibles) == 1:
-                        coupPropose = "★ Coup gagnant : "+ carteEnTexte(carte) + " (colonne "+ str(i+1) + ") " + "-> fondation " + nomFondation + " : range une carte en fondation"
-                        coupPropose += "  -> tapez : d " + carteEnSaisie(carte) + " " + nomFondation
-                        coups.insert(0, coupPropose)
-
-                    else :
-                        coupPropose = carteEnTexte(carte) + " (Colonne " + str(i+1) +") " + "-> fondation " + nomFondation + " : range une carte en fondation"
-                        coupPropose += "  -> tapez : d " + carteEnSaisie(carte) + " " + nomFondation
-                        coups.append(coupPropose)
-
-    # Défausse -> fondation
+    # --- Priorité 2 : jouer la carte de la défausse ---
     if len(partie["defausse"]) > 0:
         carte = partie["defausse"][-1]
-        numero = trouverFondation(carte, partie["fondations"])
 
+        numero = trouverFondation(carte, fondations)
         if numero is not None:
-            nomFondation = "f" + str(numero + 1)
+            coupsDefausse.append({"carte": carte, "depart": "défausse",
+                                  "destination": ["fondation", numero],
+                                  "raison": "range une carte en fondation"})
 
-            # Si c'est un coup gagnant
-            if nbCartesCachees == 0 and nbCarteDansDefausse == 1 and nbCarteDansPioche == 0:
-                coupPropose = "★ Coup gagnant : "+ carteEnTexte(carte) + " (défausse) -> fondation " + nomFondation + " : range une carte en fondation"
-                coupPropose += "  -> tapez : d " + carteEnSaisie(carte) + " " + nomFondation
-                coups.insert(0, coupPropose)
+        for k in range(len(colonnes)):
+            if peutPoserSurColonne(carte, colonnes[k]):
+                coupsDefausse.append({"carte": carte, "depart": "défausse",
+                                      "destination": ["colonne", k],
+                                      "raison": "joue la carte de la défausse"})
 
-            else:
-                coupPropose = carteEnTexte(carte) + " (défausse) -> fondation " + nomFondation + " : range une carte en fondation"
-                coupPropose += "  -> tapez : d " + carteEnSaisie(carte) + " " + nomFondation
-                coups.append(coupPropose)
+    # --- Priorité 3 : les autres cartes de colonne qui peuvent aller en fondation ---
+    # (celles qui ne libèrent pas de carte cachée, déjà traitées en priorité 1)
+    for i in range(len(colonnes)):
+        visibles = colonnes[i]["visibles"]
 
-    # Colonne -> colonne
-    for nbCachees in range(6, 0, -1):
-        for i in range(len(partie["colonnes"])):
-            visibles = partie["colonnes"][i]["visibles"]
-            cachees = partie["colonnes"][i]["cachees"]
-            
-            if len(cachees) == nbCachees and len(visibles) > 0:
-                carte = visibles[0]
+        if len(visibles) > 0:
+            libereCachee = len(colonnes[i]["cachees"]) > 0 and len(visibles) == 1
 
-        for k in range(len(partie["colonnes"])):
-            visibles = partie["colonnes"][i]["visibles"]
-            cachees = partie["colonnes"][i]["cachees"]
+            if not libereCachee:
+                numero = trouverFondation(visibles[-1], fondations)
+                if numero is not None:
+                    coupsFondation.append({"carte": visibles[-1], "depart": "colonne " + str(i + 1),
+                                           "destination": ["fondation", numero],
+                                           "raison": "range une carte en fondation"})
 
-            if k != i:
-                if peutPoserSurColonne(carte, partie["colonnes"][k]):
-                    if nbCartesCachees == 1 and len(cachees) == 1:
-                         coupPropose = "★ Coup gagnant : "+ carteEnTexte(carte) + " (colonne "+ str(i+1) + ") " + "-> colonne" + str(k+1) + " : retourne une carte caché"
-                         coupPropose += "  -> tapez : d " + carteEnSaisie(carte) + " " + str(k+1)
-                         coups.insert(0, coupPropose)
+    # --- Priorité 4 : préparer un coup utile ---
+    # Ces coups ne font pas avancer la partie à eux seuls, c'est pour cela qu'ils passent en dernier :
+    # le coup suivant sera forcément un coup qui avance (la carte libérée monte en fondation,
+    # ou le roi va dans la colonne vide), donc l'ordinateur ne peut pas tourner en rond
 
-                    else :
-                        coupPropose = carteEnTexte(carte) + " (colonne " + str(i+1) + ") -> colonne " + str(k+1) + " : retourne une carte cachée"
-                        coupPropose += "  -> tapez : d " + carteEnSaisie(carte) + " " + str(k+1)
-                        coups.append(coupPropose)
+    # (a) Libérer une carte qui peut aller en fondation, en déplaçant les cartes posées dessus
+    for i in range(len(colonnes)):
+        visibles = colonnes[i]["visibles"]
 
-    for i in range(len(coups)):
-        print(str(i + 1) + ". " + coups[i])
+        for j in range(1, len(visibles)):
+            if trouverFondation(visibles[j - 1], fondations) is not None:
+                for k in range(len(colonnes)):
+                    if k != i and peutPoserSurColonne(visibles[j], colonnes[k]):
+                        coupsPreparation.append({"carte": visibles[j], "depart": "colonne " + str(i + 1),
+                                                 "destination": ["colonne", k],
+                                                 "raison": "libère une carte pour la fondation"})
+
+    # (b) Vider une colonne quand un roi attend une place
+    # Un roi attend s'il est posé sur des cartes cachées, ou s'il est sur le dessus de la défausse
+    roiEnAttente = False
+    colonneVide = False
+
+    for colonne in colonnes:
+        if len(colonne["cachees"]) > 0 and len(colonne["visibles"]) > 0 and colonne["visibles"][0][0] == 13:
+            roiEnAttente = True
+        if len(colonne["cachees"]) == 0 and len(colonne["visibles"]) == 0:
+            colonneVide = True
+
+    if len(partie["defausse"]) > 0 and partie["defausse"][-1][0] == 13:
+        roiEnAttente = True
+
+    if roiEnAttente and not colonneVide:
+        for i in range(len(colonnes)):
+            visibles = colonnes[i]["visibles"]
+
+            # Une colonne sans carte cachée, qui ne commence pas déjà par un roi
+            if len(colonnes[i]["cachees"]) == 0 and len(visibles) > 0 and visibles[0][0] != 13:
+                for k in range(len(colonnes)):
+                    if k != i and peutPoserSurColonne(visibles[0], colonnes[k]):
+                        coupsPreparation.append({"carte": visibles[0], "depart": "colonne " + str(i + 1),
+                                                 "destination": ["colonne", k],
+                                                 "raison": "vide une colonne pour un roi"})
+
+    coups = coupsRevelent + coupsDefausse + coupsFondation + coupsPreparation
+
+    # --- Les coups gagnants passent en premier ---
+    # On essaie chaque coup sur une copie de la partie (même principe que l'annulation)
+    # Si après le coup la victoire est assurée, c'est un coup gagnant
+    coupsGagnants = []
+    autresCoups = []
+
+    for coup in coups:
+        copie = json.loads(json.dumps(partie))
+        deplacer(copie, coup["carte"], coup["destination"])
+
+        if victoireAssuree(copie):
+            coup["raison"] = "★ coup gagnant"
+            coupsGagnants.append(coup)
+        else:
+            autresCoups.append(coup)
+
+    return coupsGagnants + autresCoups
+
+
+# Cette fonction transforme un coup (dictionnaire) en texte pour l'affichage
+# Elle prend en paramètre le coup et renvoie le texte sur deux lignes :
+# la description du coup, puis la commande exacte à taper
+def coupEnTexte(coup):
+    destination = coup["destination"]
+
+    if destination[0] == "fondation":
+        texteDestination = "fondation f" + str(destination[1] + 1)
+        saisieDestination = "f" + str(destination[1] + 1)
+    else:
+        texteDestination = "colonne " + str(destination[1] + 1)
+        saisieDestination = str(destination[1] + 1)
+
+    texte = carteEnTexte(coup["carte"]) + " (" + coup["depart"] + ") -> " + texteDestination
+    texte += " : " + coup["raison"]
+    texte += "\n   tapez : d " + carteEnSaisie(coup["carte"]) + " " + saisieDestination
+
+    return texte
+
+
+# Cette procédure affiche les coups possibles, du plus important au moins important
+# Elle prend en paramètre la partie (dictionnaire) et ne renvoie rien
+def proposerCoups(partie):
+    coups = trouverCoups(partie)
+
+    if len(coups) > 0:
+        for i in range(len(coups)):
+            print(str(i + 1) + ". " + coupEnTexte(coups[i]))
+
+    elif len(partie["pioche"]) > 0 or len(partie["defausse"]) > 0:
+        print("Aucun déplacement possible, piochez (tapez : p)")
+
+    else:
+        print("Aucun coup possible, la partie est bloquée (｡ᵕ ◞ _◟)")
+
+# Cette procédure fait jouer l'ordinateur tout seul jusqu'à la victoire ou au blocage
+# À chaque tour, il joue le meilleur coup trouvé par trouverCoups, ou pioche s'il n'y en a aucun
+# Elle prend en paramètre la partie (dictionnaire) et l'historique (liste), pour que
+# le joueur puisse annuler les coups de l'ordinateur avec la commande an
+# Elle modifie la partie directement et ne renvoie rien
+def ordinateurJoue(partie, historique):
+    enCours = True
+    pasAPas = True        # True : on attend que le joueur appuie sur Entrée après chaque coup
+    piochesSansCoup = 0   # nombre de pioches faites de suite sans trouver de coup
+
+    while enCours:
+        coups = trouverCoups(partie)
+        nbCartesPioche = len(partie["pioche"]) + len(partie["defausse"])
+
+        if len(coups) > 0:
+            # L'ordinateur joue le meilleur coup : le premier de la liste
+            coup = coups[0]
+
+            if piochesSansCoup > 0:
+                print("L'ordinateur a pioché " + str(piochesSansCoup) + " fois")
+
+            # On n'affiche que la première ligne du texte du coup (sans le "tapez : ...")
+            print("L'ordinateur joue : " + coupEnTexte(coup).split("\n")[0])
+
+            historique.append(json.dumps(partie))
+            deplacer(partie, coup["carte"], coup["destination"])
+            piochesSansCoup = 0
+
+            if victoireAssuree(partie):
+                enCours = False
+
+            elif pasAPas:
+                afficherPartie(partie)
+                reponse = input("Entrée : coup suivant, t : tout jouer, q : arrêter ").lower().strip()
+
+                while reponse not in ("", "t", "q"):
+                    print("Saisie incorrecte, appuyez sur Entrée ou tapez t ou q")
+                    reponse = input("Entrée : coup suivant, t : tout jouer, q : arrêter ").lower().strip()
+
+                if reponse == "q":
+                    enCours = False
+                elif reponse == "t":
+                    pasAPas = False
+
+        elif nbCartesPioche > 0 and piochesSansCoup <= nbCartesPioche:
+            # Aucun coup possible : l'ordinateur pioche
+            historique.append(json.dumps(partie))
+            piocher(partie)
+            piochesSansCoup += 1
+
+        else:
+            # Toutes les cartes de la pioche ont défilé sans débloquer de coup
+            print("L'ordinateur a fait le tour de la pioche sans trouver de coup : il est bloqué (｡ᵕ ◞ _◟)")
+            enCours = False
+
 
 # Cette fonction crée les préréglages de difficulté
 # Elle ne prend pas de paramètre et renvoie un dictionnaire
